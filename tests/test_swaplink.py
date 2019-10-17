@@ -13,7 +13,7 @@ async def test_swaplink_neighbour_retrieval():
     network = await setup_network_by_relative_loads(
         my_relative_load, others_relative_load
     )
-    neighbours = await network.get_neighbour_nodes()
+    neighbours = await network.list_neighbours()
     assert len(neighbours) == neighbours
 
 
@@ -27,7 +27,7 @@ async def test_swaplink_random_selection():
     )
     random_nodes = []
     for _ in range(others_amount):
-        random_nodes.append(await network.get_random_node())
+        random_nodes.append(await network.select())
     unique_nodes = set(random_nodes)
 
     RANDOMNESS = 0.8  # todo: implement good randomness test

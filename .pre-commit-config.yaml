@@ -19,6 +19,6 @@ repos:
         name: Check mypy static types match
         entry: mypy
         pass_filenames: false
-        args: ["swaplink"]
+        args: ["swaplink", "--no-strict-optional", "--ignore-missing-imports"]
         language: system
         types: [python]
