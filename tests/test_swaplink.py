@@ -13,7 +13,7 @@ async def test_swaplink_neighbour_retrieval():
     network = await setup_network_by_relative_loads(
         my_relative_load, others_relative_load
     )
-    neighbours = await network.list_neighbours()
+    neighbours = await network.list_neighbours()  # todo: callback
     assert len(neighbours) == neighbours
 
 

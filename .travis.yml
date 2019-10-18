@@ -9,5 +9,5 @@ install:
 script:
   - pytest --cov-report term --cov=./ tests/
 # Upload coverage report to 'Codecov'
-after_success:
+after_script:
   - codecov --token=8fe4817f-071f-4d3a-ad2c-b3b2509b461b
