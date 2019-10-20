@@ -1,5 +1,6 @@
 import asyncio
 from asyncio.transports import DatagramTransport
+from collections import deque
 from typing import List, Tuple
 
 from swaplink import Swaplink
@@ -20,11 +21,8 @@ async def setup_network_by_relative_loads(
     for load in others_relative_loads[1:]:
         port_i += 1
         network = Swaplink(localhost, port=first_port + port_i)
-        print(f"joining {network._node}...")
         await network.join(load, [bootstrap._node])
-        print(f"joined {network._node}")
         other_networks.append(network)
-    # todo: init nodes?
     my_network = Swaplink(localhost, port=first_port + port_i + 1)
     await my_network.join(my_relative_load, [bootstrap._node])
     return my_network, other_networks
@@ -41,7 +39,7 @@ async def setup_n_protocols(
         node = Node(localhost, 5678 + i)
         link_store = LinkStore()
         transport, protocol = await loop.create_datagram_endpoint(
-            lambda: SwaplinkProtocol(node, link_store, n), local_addr=node
+            lambda: SwaplinkProtocol(node, link_store, deque(), n), local_addr=node
         )
         protocols.append(protocol)
         transports.append(transport)

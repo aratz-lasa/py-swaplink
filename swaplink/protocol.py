@@ -1,8 +1,9 @@
+from collections import deque
 from typing import Any, Tuple
 
 from rpcudp.protocol import RPCProtocol
 
-from swaplink.defaults import RPC_TIMEOUT
+from swaplink import defaults
 from swaplink.abc import ISwaplinkProtocol, LinkStore, LinkType, Node, NodeAddr
 from swaplink.errors import RPCError
 from swaplink.utils import random_choice_safe
@@ -11,19 +12,36 @@ from swaplink.utils import random_choice_safe
 class SwaplinkProtocol(RPCProtocol, ISwaplinkProtocol):
     _origin_node: Node
     _link_store: LinkStore
+    _links_queue: deque
     _num_links: int
 
-    def __init__(self, origin_node: Node, link_store: LinkStore, num_links: int):
-        RPCProtocol.__init__(self, RPC_TIMEOUT)
+    def __init__(
+        self,
+        origin_node: Node,
+        link_store: LinkStore,
+        links_queue: deque,
+        num_links: int,
+    ):
+        RPCProtocol.__init__(self, defaults.RPC_TIMEOUT)
         self._origin_node = origin_node
         self._link_store = link_store
+        self._links_queue = links_queue
         self._num_links = num_links
 
     # Calls
     async def call_random_walk(
-        self, node_to_ask: Node, index: int, limit: int, link_type: LinkType
+        self,
+        node_to_ask: Node,
+        index: int,
+        limit: int,
+        link_type: LinkType,
+        walk_initiator: Node = None,
     ) -> Node:
-        result = await self.random_walk(node_to_ask, index, limit, link_type)
+        if not walk_initiator:
+            walk_initiator = self._origin_node
+        result = await self.random_walk(
+            node_to_ask, walk_initiator, index, limit, link_type
+        )
         random_node = self._handle_call_response(result, node_to_ask)
         return Node(*random_node)
 
@@ -43,9 +61,15 @@ class SwaplinkProtocol(RPCProtocol, ISwaplinkProtocol):
 
     # RPCs
     async def rpc_random_walk(
-        self, sender: NodeAddr, index: int, limit: int, link_type: LinkType
+        self,
+        sender: Node,
+        walk_initiator: Node,
+        index: int,
+        limit: int,
+        link_type: LinkType,
     ) -> NodeAddr:
         random_node: Node
+        self._add_sender_to_queue(sender)
         if index >= limit:
             return self._origin_node
         if link_type == LinkType.IN:
@@ -56,21 +80,22 @@ class SwaplinkProtocol(RPCProtocol, ISwaplinkProtocol):
             random_node = random_choice_safe(
                 self._link_store.get_out_links_copy(), self._origin_node
             )
-        if random_node == self._origin_node or random_node == sender:
+        if random_node in {self._origin_node, sender, tuple(walk_initiator)}:
             return self._origin_node
         result_node = await self.call_random_walk(
-            random_node, index + 1, limit, link_type
+            random_node, index + 1, limit, link_type, walk_initiator
         )
         return result_node
 
     async def rpc_give_me_in_node(self, sender: NodeAddr) -> None:
+        self._add_sender_to_queue(sender)
         in_node_given = False
         while not in_node_given:
             try:
                 random_in_node = random_choice_safe(
                     self._link_store.get_in_links_copy(), self._origin_node
                 )
-                if random_in_node != self._origin_node and random_in_node != sender:
+                if random_in_node not in {self._origin_node, sender}:
                     await self.call_change_your_out_node(random_in_node, Node(*sender))
                 in_node_given = True
             except RPCError:
@@ -79,6 +104,7 @@ class SwaplinkProtocol(RPCProtocol, ISwaplinkProtocol):
     async def rpc_change_your_out_node(
         self, sender: NodeAddr, new_out_node: NodeAddr
     ) -> None:
+        self._add_sender_to_queue(sender)
         new_out_node = Node(*new_out_node)
         old_out_node = Node(*sender)
         if sender == self._origin_node:
@@ -92,6 +118,7 @@ class SwaplinkProtocol(RPCProtocol, ISwaplinkProtocol):
         self._link_store.add_out_link(new_out_node)
 
     async def rpc_im_your_in_node(self, sender: NodeAddr) -> None:
+        self._add_sender_to_queue(sender)
         if sender != self._origin_node:
             self._link_store.add_in_link(Node(*sender))
 
@@ -104,3 +131,6 @@ class SwaplinkProtocol(RPCProtocol, ISwaplinkProtocol):
             self._link_store.remove_link(node)
             raise RPCError
         return result[1]
+
+    def _add_sender_to_queue(self, sender: NodeAddr) -> None:
+        self._links_queue.append(Node(*sender))

@@ -127,7 +127,12 @@ class ISwaplink(ABC):
 class ISwaplinkProtocol(ABC):
     @abstractmethod
     async def call_random_walk(
-        self, node_to_ask: Node, index: int, limit: int, link_type: LinkType
+        self,
+        node_to_ask: Node,
+        index: int,
+        limit: int,
+        link_type: LinkType,
+        walk_initiator: Node = None,
     ):
         pass
 
