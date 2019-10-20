@@ -76,7 +76,7 @@ class Swaplink(ISwaplink):
             )
         except (RPCError, IndexError):
             pass
-        return None
+        return None  # todo: raise error?
 
     async def _init_links(self, bootstrap_nodes):
         for _ in range(self._num_links):
