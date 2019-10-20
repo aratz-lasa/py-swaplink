@@ -1,21 +1,37 @@
 from abc import ABC, abstractmethod
+from collections import namedtuple
 from dataclasses import dataclass, field
-from enum import Enum, auto
+from enum import IntEnum, auto
 from typing import List, Tuple, Callable, Any
+
+from swaplink.utils import ListWithCallback
 
 NodeAddr = Tuple[str, int]
 NeighborsCallback = Callable[[List["Node"]], Any]
 
 
-class LinkType(Enum):
+class LinkType(IntEnum):  # IntEnum instead of enum for compatibility with MsgPack
     IN = auto()
     OUT = auto()
 
 
+Node = namedtuple("Node", ["host", "port"])
+
+
 @dataclass
 class LinkStore:
-    in_links: List["Node"] = field(default_factory=list)
-    out_links: List["Node"] = field(default_factory=list)
+    in_links: ListWithCallback = field(default_factory=ListWithCallback)
+    out_links: ListWithCallback = field(default_factory=ListWithCallback)
+
+    def remove_link(self, node: Node) -> None:
+        if node in self.in_links:
+            self.in_links.remove(node)
+        if node in self.out_links:
+            self.out_links.remove(node)
+
+    def set_callback(self, callback):
+        self.in_links.set_callback(callback)
+        self.out_links.set_callback(callback)
 
 
 class ISwaplink(ABC):
@@ -24,8 +40,8 @@ class ISwaplink(ABC):
     These are the methods offer by Swaplink for upper layers.
     """
 
-    _relative_load: int
-    _node: "Node"
+    _num_links: int
+    _node: Node
     _link_store: LinkStore
 
     @abstractmethod
@@ -39,9 +55,13 @@ class ISwaplink(ABC):
         pass
 
     @abstractmethod
+    async def leave(self) -> None:
+        pass
+
+    @abstractmethod
     async def list_neighbours(
         self, callback_on_change: NeighborsCallback
-    ) -> List["Node"]:
+    ) -> List[Node]:
         """
         In addition to providing the current set of neighbors,
         a callback allows Swaplinks to inform the application
@@ -52,21 +72,12 @@ class ISwaplink(ABC):
         pass
 
     @abstractmethod
-    async def select(self) -> "Node":
+    async def select(self) -> Node:
         """
         It randomly selects another node from the network.
         :return: randomly selected node
         """
         pass
-
-
-@dataclass(eq=True)
-class Node(ABC):
-    host: str
-    port: int
-
-    def get_addr(self) -> NodeAddr:
-        return self.host, self.port
 
 
 class ISwaplinkProtocol(ABC):

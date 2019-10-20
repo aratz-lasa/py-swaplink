@@ -1,4 +1,6 @@
-from typing import List
+import asyncio
+from asyncio.transports import DatagramTransport
+from typing import List, Tuple
 
 from swaplink import Swaplink
 from swaplink.abc import LinkStore
@@ -8,20 +10,44 @@ from swaplink.protocol import SwaplinkProtocol
 
 async def setup_network_by_relative_loads(
     my_relative_load: int, others_relative_loads: List[int]
-) -> Swaplink:
-    bootstrap = Swaplink(others_relative_loads[0])
-    for load in others_relative_loads:
-        network = Swaplink()
-        await network.join(load, bootstrap._node.get_addr())
+) -> Tuple[Swaplink, List[Swaplink]]:
+    first_port = 5678
+    port_i = 0
+    bootstrap = Swaplink(port=first_port + port_i)
+    await bootstrap.join(others_relative_loads[0])
+    print("Bootstrap inited")
+    other_networks = [bootstrap]
+    for load in others_relative_loads[1:]:
+        port_i += 1
+        network = Swaplink(port=first_port + port_i)
+        print(f"Joining... {network._node}")
+        await network.join(load, [bootstrap._node])
+        print(f"Joined {network._node}")
+        other_networks.append(network)
     # todo: init nodes?
-    return Swaplink(my_relative_load, bootstrap._node.get_addr())
+    my_network = Swaplink(port=first_port + port_i + 1)
+    await my_network.join(my_relative_load, [bootstrap._node])
+    return my_network, other_networks
 
 
-def setup_n_protocols(n: int) -> List[SwaplinkProtocol]:
+async def setup_n_protocols(
+    n: int
+) -> Tuple[List[SwaplinkProtocol], List[DatagramTransport]]:
     localhost = "127.0.0.1"
     protocols = []
+    transports = []
+    loop = asyncio.get_event_loop()
     for i in range(n):
         node = Node(localhost, 5678 + i)
         link_store = LinkStore()
-        protocols.append(SwaplinkProtocol(node, link_store))
-    return protocols
+        transport, protocol = await loop.create_datagram_endpoint(
+            lambda: SwaplinkProtocol(node, link_store), local_addr=node
+        )
+        protocols.append(protocol)
+        transports.append(transport)
+    return protocols, transports
+
+
+def close_transports(transports: List[DatagramTransport]) -> None:
+    for udp in transports:
+        udp.close()
