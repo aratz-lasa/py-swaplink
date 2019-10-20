@@ -29,7 +29,9 @@ async def test_swaplink_neighbour_retrieval():
     )
     await asyncio.sleep(defaults.HBEAT_CHECK_FREQUENCY * 1.5)
     neighbours = my_network.list_neighbours(callback)  # todo: callback
-    assert len(neighbours) == my_relative_load
+    assert len(neighbours) >= (
+        my_relative_load * 0.8
+    )  # todo: how much links should it have after two cycles?
 
 
 @pytest.mark.asyncio
