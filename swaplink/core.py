@@ -3,21 +3,81 @@ import time
 from asyncio.protocols import BaseProtocol
 from asyncio.transports import BaseTransport
 from collections import deque
-from typing import List
+from typing import List, Any
 
 from swaplink import defaults
 from swaplink.abc import (
     ISwaplink,
-    Node,
-    LinkStore,
     NodeAddr,
     NeighborsCallback,
-    LinkType,
     ISwaplinkProtocol,
+    ILinkStore,
 )
+from swaplink.data_objects import DictWithCallback, Node, LinkType
 from swaplink.errors import RPCError
 from swaplink.protocol import SwaplinkProtocol
 from swaplink.utils import random_choice_safe
+
+
+class LinkStore(ILinkStore):
+    _in_links: DictWithCallback
+    _out_links: DictWithCallback
+
+    def __init__(
+        self,
+        in_links: DictWithCallback = None,
+        out_links: DictWithCallback = None,
+        callback: NeighborsCallback = None,
+    ):
+        self._in_links = in_links or DictWithCallback()
+        self._out_links = out_links or DictWithCallback()
+        self.set_callback(callback)
+        self._out_links.set_callback(self._my_callback)
+
+    def add_in_link(self, node: Node) -> None:
+        self._in_links[node] = time.monotonic()
+
+    def get_in_link_hbeat(self, node: Node) -> float:
+        return self._in_links[node]
+
+    def get_in_links_copy(self) -> List[Any]:
+        return list(self._in_links.keys())
+
+    def remove_in_link(self, node: Node) -> None:
+        if self._in_links.get(node):
+            del self._in_links[node]
+
+    def contains_in_link(self, node: Node) -> bool:
+        return node in self._in_links
+
+    def add_out_link(self, node: Node) -> None:
+        self._out_links[node] = time.monotonic()
+
+    def get_out_link_hbeat(self, node: Node) -> float:
+        return self._out_links[node]
+
+    def get_out_links_copy(self) -> List[Any]:
+        return list(self._out_links.keys())
+
+    def remove_out_link(self, node: Node) -> None:
+        if self._out_links.get(node):
+            del self._out_links[node]
+
+    def remove_link(self, node: Node) -> None:
+        self.remove_in_link(node)
+        self.remove_out_link(node)
+
+    def contains_out_link(self, node: Node) -> bool:
+        return node in self._out_links
+
+    def set_callback(self, callback: NeighborsCallback):
+        self._callback: NeighborsCallback
+        self._callback = callback
+
+    def _my_callback(self, changed_dict: DictWithCallback):
+        if self._callback:
+            changed_nodes = list(changed_dict.keys())
+            self._callback(changed_nodes)
 
 
 class Swaplink(ISwaplink):
@@ -60,10 +120,16 @@ class Swaplink(ISwaplink):
             self._transport.close()
         for task in self._tasks:
             task.cancel()
-            await task
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
-    def list_neighbours(self, callback_on_change: NeighborsCallback) -> List[Node]:
-        self._link_store.set_callback(callback_on_change)
+    def list_neighbours(
+        self, callback_on_change: NeighborsCallback = None
+    ) -> List[Node]:
+        if callback_on_change:
+            self._link_store.set_callback(callback_on_change)
         return self._link_store.get_out_links_copy()  # todo: return also in-links?
 
     async def select(self) -> Node:

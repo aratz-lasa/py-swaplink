@@ -4,21 +4,21 @@ from typing import Any, Tuple
 from rpcudp.protocol import RPCProtocol
 
 from swaplink import defaults
-from swaplink.abc import ISwaplinkProtocol, LinkStore, LinkType, Node, NodeAddr
+from swaplink.abc import ISwaplinkProtocol, LinkType, Node, NodeAddr, ILinkStore
 from swaplink.errors import RPCError
 from swaplink.utils import random_choice_safe
 
 
 class SwaplinkProtocol(RPCProtocol, ISwaplinkProtocol):
     _origin_node: Node
-    _link_store: LinkStore
+    _link_store: ILinkStore
     _links_queue: deque
     _num_links: int
 
     def __init__(
         self,
         origin_node: Node,
-        link_store: LinkStore,
+        link_store: ILinkStore,
         links_queue: deque,
         num_links: int,
     ):
@@ -125,7 +125,7 @@ class SwaplinkProtocol(RPCProtocol, ISwaplinkProtocol):
     def _handle_call_response(self, result: Tuple[int, Any], node: Node) -> Any:
         """
         If we get a response, returns it.
-         Otherwise raise error and remove the node from LinkStore.
+         Otherwise raise error and remove the node from ILinkStore.
         """
         if not result[0]:
             self._link_store.remove_link(node)

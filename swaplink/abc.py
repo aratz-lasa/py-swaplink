@@ -1,83 +1,10 @@
-import time
 from abc import ABC, abstractmethod
-from collections import namedtuple
-from dataclasses import field
-from enum import IntEnum, auto
 from typing import List, Tuple, Callable, Any
 
-from swaplink.utils import DictWithCallback
-
-Node = namedtuple("Node", ["host", "port"])
+from swaplink.data_objects import Node, LinkType
 
 NodeAddr = Tuple[str, int]
-NeighborsCallback = Callable[[List[Node]], Any]
-
-
-class LinkType(IntEnum):  # IntEnum instead of enum for compatibility with MsgPack
-    IN = auto()
-    OUT = auto()
-
-
-class LinkStore:
-    _in_links: DictWithCallback = field(default_factory=DictWithCallback)
-    _out_links: DictWithCallback = field(default_factory=DictWithCallback)
-
-    def __init__(
-        self,
-        in_links: DictWithCallback = None,
-        out_links: DictWithCallback = None,
-        callback: NeighborsCallback = None,
-    ):
-        self._in_links = in_links or DictWithCallback()
-        self._out_links = out_links or DictWithCallback()
-        self.set_callback(callback)
-        self._out_links.set_callback(self._my_callback)
-
-    def add_in_link(self, node: Node) -> None:
-        self._in_links[node] = time.monotonic()
-
-    def get_in_link_hbeat(self, node: Node) -> float:
-        return self._in_links[node]
-
-    def get_in_links_copy(self) -> List[Any]:
-        return list(self._in_links.keys())
-
-    def remove_in_link(self, node: Node) -> None:
-        if self._in_links.get(node):
-            del self._in_links[node]
-
-    def contains_in_link(self, node: Node) -> bool:
-        return node in self._in_links
-
-    def add_out_link(self, node: Node) -> None:
-        self._out_links[node] = time.monotonic()
-
-    def get_out_link_hbeat(self, node: Node) -> float:
-        return self._out_links[node]
-
-    def get_out_links_copy(self) -> List[Any]:
-        return list(self._out_links.keys())
-
-    def remove_out_link(self, node: Node) -> None:
-        if self._out_links.get(node):
-            del self._out_links[node]
-
-    def remove_link(self, node: Node) -> None:
-        self.remove_in_link(node)
-        self.remove_out_link(node)
-
-    def contains_out_link(self, node: Node) -> bool:
-        return node in self._out_links
-
-    def set_callback(self, callback: NeighborsCallback):
-        self._callback: NeighborsCallback
-        self._callback = callback
-
-    def _my_callback(self, changed_dict: DictWithCallback):
-        if self._callback:
-            changed_nodes: List[Node]
-            changed_nodes = list(changed_dict.keys())
-            self._callback(changed_nodes)
+NeighborsCallback = Callable[[List["Node"]], Any]
 
 
 class ISwaplink(ABC):
@@ -88,7 +15,7 @@ class ISwaplink(ABC):
 
     _num_links: int
     _node: Node
-    _link_store: LinkStore
+    _link_store: "ILinkStore"
 
     @abstractmethod
     async def join(self, num_links: int, bootstrap: List[NodeAddr] = None) -> None:
@@ -149,3 +76,53 @@ class ISwaplinkProtocol(ABC):
     @abstractmethod
     async def call_im_your_in_node(self, node_to_ask: Node) -> None:
         pass  # todo
+
+
+class ILinkStore(ABC):
+    @abstractmethod
+    def add_in_link(self, node: Node) -> None:
+        pass
+
+    @abstractmethod
+    def get_in_link_hbeat(self, node: Node) -> float:
+        pass
+
+    @abstractmethod
+    def get_in_links_copy(self) -> List[Any]:
+        pass
+
+    @abstractmethod
+    def remove_in_link(self, node: Node) -> None:
+        pass
+
+    @abstractmethod
+    def contains_in_link(self, node: Node) -> bool:
+        pass
+
+    @abstractmethod
+    def add_out_link(self, node: Node) -> None:
+        pass
+
+    @abstractmethod
+    def get_out_link_hbeat(self, node: Node) -> float:
+        pass
+
+    @abstractmethod
+    def get_out_links_copy(self) -> List[Any]:
+        pass
+
+    @abstractmethod
+    def remove_out_link(self, node: Node) -> None:
+        pass
+
+    @abstractmethod
+    def remove_link(self, node: Node) -> None:
+        pass
+
+    @abstractmethod
+    def contains_out_link(self, node: Node) -> bool:
+        pass
+
+    @abstractmethod
+    def set_callback(self, callback: NeighborsCallback) -> None:
+        pass

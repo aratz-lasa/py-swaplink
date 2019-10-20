@@ -1,3 +1,3 @@
-from swaplink.network import Swaplink
+from swaplink.core import Swaplink
 
 __all__ = ["Swaplink"]

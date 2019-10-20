@@ -17,6 +17,25 @@ It gives quite-precise control over both the probability that a node is selected
 It is efficient, scalable, robust and simple, while limiting tuning-knobs to just 'desired-load' or 'capacity'.
 
 ## Usage
+```python
+from swaplink import Swaplink
+
+def callback(neighbors):
+    ...
+
+async def main():
+    host = "127.0.0.1"
+    port = 5678
+    num_links = 5  # relative load on your node
+    boostrap_nodes = [("127.0.0.1", 7777)]
+    
+    network = Swaplink(host, port)
+    await network.join(num_links, boostrap_nodes)
+    random_node = await network.select()
+    neighbors = network.list_neighbours(callback)
+    ...
+    await network.leave()
+```
 
 ## References
 * [Swaplink paper](http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.365.9926) - Vivek Vishnumurthy and Paul Francis. On heterogeneous over-lay construction and random node selection in unstructured p2pnetworks. InProc. IEEE Infocom, 2006.

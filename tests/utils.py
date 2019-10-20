@@ -4,7 +4,7 @@ from collections import deque
 from typing import List, Tuple
 
 from swaplink import Swaplink
-from swaplink.abc import LinkStore
+from swaplink.core import LinkStore
 from swaplink.abc import Node
 from swaplink.protocol import SwaplinkProtocol
 

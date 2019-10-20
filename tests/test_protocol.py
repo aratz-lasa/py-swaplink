@@ -1,6 +1,6 @@
 import pytest
 
-from swaplink.abc import LinkType
+from swaplink.data_objects import LinkType
 from tests.utils import setup_n_protocols, close_transports
 
 
