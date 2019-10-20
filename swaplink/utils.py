@@ -1,69 +1,71 @@
 import random
+from collections.abc import Sequence
+from typing import Any, Callable
 
 
-def get_random_int_min_zero(max):
-    """
-    Generates random integer in the range [0,max)
-    :param max: range biggest number
-    :return: random integer
-    """
-    return int(random.randint(0, max - 1))
+def random_choice_safe(sequence: Sequence, default: Any = None) -> Any:
+    try:
+        return random.choice(sequence)
+    except IndexError:
+        return default
 
 
-class ListWithCallback(set):
+class DictWithCallback(dict):
     """
     Send all changes to an observer.
     """
 
-    def __init__(self, value=None, callback=None):
-        if value:
-            set.__init__(self, value)
-        else:
-            set.__init__(self)
+    _callback: Callable
+
+    def __init__(self, *args, callback=None, **kwargs):
+        dict.__init__(self, *args, **kwargs)
         self.set_callback(callback)
 
     def set_callback(self, callback):
         """
-        All changes to this list will trigger calls to observer methods.
+        All changes to this dictionary will trigger calls to observer methods
         """
-        self.callback = callback
+        self._callback = callback
 
-    def add(self, *args, **kwargs):  # real signature unknown
-        set.add(self, *args, **kwargs)
+    def __setitem__(self, key, value):
+        """
+        Intercept the l[key]=value operations.
+        Also covers slice assignment.
+        """
+        result = dict.__setitem__(self, key, value)
         self._call_callback()
+        return result
 
-    def clear(self, *args, **kwargs):  # real signature unknown
-        set.clear(self)
+    def __delitem__(self, key):
+        result = dict.__delitem__(self, key)
         self._call_callback()
+        return result
 
-    def difference_update(self, *args, **kwargs):  # real signature unknown
-        set.difference_update(self, *args)
+    def clear(self):
+        result = dict.clear(self)
         self._call_callback()
+        return result
 
-    def discard(self, *args, **kwargs):  # real signature unknown
-        set.discard(self, *args, **kwargs)
+    def update(self, *args, **kwargs):
+        result = dict.update(self, *args, **kwargs)
         self._call_callback()
+        return result
 
-    def intersection_update(self, *args, **kwargs):  # real signature unknown
-        set.intersection_update(self, *args)
+    def setdefault(self, key, value=None):
+        result = dict.setdefault(self, key, value)
         self._call_callback()
+        return result
 
-    def pop(self, *args, **kwargs):  # real signature unknown
-        set.pop(self)
+    def pop(self, k, x=None):
+        result = dict.pop(self, k, x)
         self._call_callback()
+        return result
 
-    def remove(self, *args, **kwargs):  # real signature unknown
-        set.remove(self, *args, **kwargs)
+    def popitem(self):
+        result = dict.popitem(self)
         self._call_callback()
+        return result
 
-    def symmetric_difference_update(self, *args, **kwargs):  # real signature unknown
-        set.symmetric_difference_update(self, *args, **kwargs)
-        self._call_callback()
-
-    def update(self, *args, **kwargs):  # real signature unknown
-        set.update(self, *args)
-        self._call_callback()
-
-    def _call_callback(self):
-        if self.callback:
-            self.callback(self)
+    def _call_callback(self) -> None:
+        if self._callback:
+            self._callback(self)

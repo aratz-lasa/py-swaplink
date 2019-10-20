@@ -1,13 +1,16 @@
+import time
 from abc import ABC, abstractmethod
 from collections import namedtuple
-from dataclasses import dataclass, field
+from dataclasses import field
 from enum import IntEnum, auto
 from typing import List, Tuple, Callable, Any
 
-from swaplink.utils import ListWithCallback
+from swaplink.utils import DictWithCallback
+
+Node = namedtuple("Node", ["host", "port"])
 
 NodeAddr = Tuple[str, int]
-NeighborsCallback = Callable[[List["Node"]], Any]
+NeighborsCallback = Callable[[List[Node]], Any]
 
 
 class LinkType(IntEnum):  # IntEnum instead of enum for compatibility with MsgPack
@@ -15,23 +18,66 @@ class LinkType(IntEnum):  # IntEnum instead of enum for compatibility with MsgPa
     OUT = auto()
 
 
-Node = namedtuple("Node", ["host", "port"])
-
-
-@dataclass
 class LinkStore:
-    in_links: ListWithCallback = field(default_factory=ListWithCallback)
-    out_links: ListWithCallback = field(default_factory=ListWithCallback)
+    _in_links: DictWithCallback = field(default_factory=DictWithCallback)
+    _out_links: DictWithCallback = field(default_factory=DictWithCallback)
+
+    def __init__(
+        self,
+        in_links: DictWithCallback = None,
+        out_links: DictWithCallback = None,
+        callback: NeighborsCallback = None,
+    ):
+        self._in_links = in_links or DictWithCallback()
+        self._out_links = out_links or DictWithCallback()
+        self.set_callback(callback)
+        self._out_links.set_callback(self._my_callback)
+
+    def add_in_link(self, node: Node) -> None:
+        self._in_links[node] = time.monotonic()
+
+    def get_in_link_hbeat(self, node: Node) -> float:
+        return self._in_links[node]
+
+    def get_in_links_copy(self) -> List[Any]:
+        return list(self._in_links.keys())
+
+    def remove_in_link(self, node: Node) -> None:
+        if self._in_links.get(node):
+            del self._in_links[node]
+
+    def contains_in_link(self, node: Node) -> bool:
+        return node in self._in_links
+
+    def add_out_link(self, node: Node) -> None:
+        self._out_links[node] = time.monotonic()
+
+    def get_out_link_hbeat(self, node: Node) -> float:
+        return self._out_links[node]
+
+    def get_out_links_copy(self) -> List[Any]:
+        return list(self._out_links.keys())
+
+    def remove_out_link(self, node: Node) -> None:
+        if self._out_links.get(node):
+            del self._out_links[node]
 
     def remove_link(self, node: Node) -> None:
-        if node in self.in_links:
-            self.in_links.remove(node)
-        if node in self.out_links:
-            self.out_links.remove(node)
+        self.remove_in_link(node)
+        self.remove_out_link(node)
 
-    def set_callback(self, callback):
-        self.in_links.set_callback(callback)
-        self.out_links.set_callback(callback)
+    def contains_out_link(self, node: Node) -> bool:
+        return node in self._out_links
+
+    def set_callback(self, callback: NeighborsCallback):
+        self._callback: NeighborsCallback
+        self._callback = callback
+
+    def _my_callback(self, changed_dict: DictWithCallback):
+        if self._callback:
+            changed_nodes: List[Node]
+            changed_nodes = list(changed_dict.keys())
+            self._callback(changed_nodes)
 
 
 class ISwaplink(ABC):
@@ -59,9 +105,7 @@ class ISwaplink(ABC):
         pass
 
     @abstractmethod
-    async def list_neighbours(
-        self, callback_on_change: NeighborsCallback
-    ) -> List[Node]:
+    def list_neighbours(self, callback_on_change: NeighborsCallback) -> List[Node]:
         """
         In addition to providing the current set of neighbors,
         a callback allows Swaplinks to inform the application
@@ -88,7 +132,7 @@ class ISwaplinkProtocol(ABC):
         pass
 
     @abstractmethod
-    async def call_give_me_in_node(self, node_to_ask: Node) -> Node:
+    async def call_give_me_in_node(self, node_to_ask: Node) -> None:
         pass  # todo
 
     @abstractmethod

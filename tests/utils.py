@@ -11,21 +11,21 @@ from swaplink.protocol import SwaplinkProtocol
 async def setup_network_by_relative_loads(
     my_relative_load: int, others_relative_loads: List[int]
 ) -> Tuple[Swaplink, List[Swaplink]]:
+    localhost = "127.0.0.1"
     first_port = 5678
     port_i = 0
-    bootstrap = Swaplink(port=first_port + port_i)
+    bootstrap = Swaplink(localhost, first_port + port_i)
     await bootstrap.join(others_relative_loads[0])
-    print("Bootstrap inited")
     other_networks = [bootstrap]
     for load in others_relative_loads[1:]:
         port_i += 1
-        network = Swaplink(port=first_port + port_i)
-        print(f"Joining... {network._node}")
+        network = Swaplink(localhost, port=first_port + port_i)
+        print(f"joining {network._node}...")
         await network.join(load, [bootstrap._node])
-        print(f"Joined {network._node}")
+        print(f"joined {network._node}")
         other_networks.append(network)
     # todo: init nodes?
-    my_network = Swaplink(port=first_port + port_i + 1)
+    my_network = Swaplink(localhost, port=first_port + port_i + 1)
     await my_network.join(my_relative_load, [bootstrap._node])
     return my_network, other_networks
 
@@ -41,7 +41,7 @@ async def setup_n_protocols(
         node = Node(localhost, 5678 + i)
         link_store = LinkStore()
         transport, protocol = await loop.create_datagram_endpoint(
-            lambda: SwaplinkProtocol(node, link_store), local_addr=node
+            lambda: SwaplinkProtocol(node, link_store, n), local_addr=node
         )
         protocols.append(protocol)
         transports.append(transport)

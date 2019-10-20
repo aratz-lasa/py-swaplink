@@ -15,13 +15,15 @@ async def test_swaplink_neighbour_retrieval():
         callback_flag.set()
 
     my_relative_load = 5
-    others_amount = 10
+    others_amount = 40
     others_relative_load = [random.randrange(2, 20) for _ in range(others_amount)]
-    print(others_relative_load)
     my_network, other_networks = await setup_network_by_relative_loads(
         my_relative_load, others_relative_load
     )
-    neighbours = await my_network.list_neighbours(callback)  # todo: callback
+    print(others_relative_load)
+    for n in other_networks:
+        print(n._node, n.list_neighbours(callback))
+    neighbours = my_network.list_neighbours(callback)  # todo: callback
     assert len(neighbours) == my_relative_load
 
 
